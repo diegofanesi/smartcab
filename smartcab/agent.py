@@ -11,6 +11,7 @@ class State(object):
         self.heading = heading
         self.delta = delta
         
+        
     def __eq__(self, a):
         if (type(a) != type(self)):
             return False
@@ -23,7 +24,10 @@ class State(object):
                 return False
         return True
     
-    def __hash__(self, *args, **kwargs):
+    def __str__(self):
+        return "position: " + self.delta + " heading: " + self.heading + " actions_enabled: " + self.actions_enabled
+    
+    def __hash__(self):
         hashN = self.heading[0] * 3
         hashN += self.heading[1] * 5
         hashN += self.delta[0] * 7
@@ -49,9 +53,11 @@ class LearningAgent(Agent):
         # TODO: Initialize any additional variables here
         self.actions = ['left', 'right', 'forward', None]
         self.qTable = dict()
-        self.alpha = 0.1
+        self.alpha = 0.9
+        self.epsilon = 0.9
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
+        self.discount = 0.35
         
         
         # self.discount
@@ -59,9 +65,10 @@ class LearningAgent(Agent):
         
     def updateQValue (self, state, action, nextState, reward):
         if((state, action) not in self.qTable): 
-            self.qTable[(state, action)] = self.alpha * (reward + self.getMaxQValue(nextState)[0])
+            self.qTable[(state, action)] = self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0]))
         else:
-            self.qTable[(state, action)] = self.alpha * (reward + self.getMaxQValue(nextState)[0] - self.qTable[(state, action)]) 
+            #print((state, action))
+            self.qTable[(state, action)] = self.qTable[(state, action)] + (self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0])))
 
     def getQValue (self, state, action):
         return self.qTable.get((state, action), 0)
@@ -84,7 +91,7 @@ class LearningAgent(Agent):
         if (envReward == 12.0):
             return envReward * 2  # hitting the target is 24 points reward!
         if (self.env.compute_dist(lastpos, target) > self.env.compute_dist(curpos, target)):
-            rw = 10.0 / (self.env.compute_dist(curpos, target))  # reward if it gets closer to the target
+            rw = 20.0 / (self.env.compute_dist(curpos, target))  # reward if it gets closer to the target
         if (self.env.compute_dist(lastpos, target) < self.env.compute_dist(curpos, target)):
             rw = rw * 2.0  # going farther away from the target is twice the reward of the deadline
         return rw
@@ -117,12 +124,16 @@ class LearningAgent(Agent):
                 
         state = State(actions_enabled=actions_enabled, delta=delta, heading=heading)
         return state
+    
+    def actionToTake(self, state):
+        return  np.random.choice([self.getMaxQValue(state)[1], np.random.choice(self.actions, 1)[0]], 1, [1 - self.epsilon, self.epsilon])[0]
+        
                      
     def reset(self, destination=None):
         self.planner.route_to(destination)
         # TODO: Prepare for a new trip; reset any variables here, if required
-        print(self.sumReward)
         self.sumReward = 0.0
+        print("NStates: "+ str(self.qTable.__len__()))
     
     def update(self, t):
         # Gather inputs
@@ -131,7 +142,7 @@ class LearningAgent(Agent):
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
         curstate = self.makeState(inputs)
-        self.next_waypoint = self.getMaxQValue(curstate)[1]
+        self.next_waypoint = self.actionToTake(curstate)
         destination = self.planner.destination
 
         # action = None
@@ -143,6 +154,8 @@ class LearningAgent(Agent):
         reward = self.calcReward(curpos, newpos, destination, reward, deadline)
         self.updateQValue(curstate, action, self.makeState(self.env.sense(self)), reward)
         self.sumReward += reward
+        
+        self.epsilon = self.epsilon * 0.99
         # TODO: Update state
         # print(inputs)
 
@@ -169,7 +182,7 @@ def run():
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.01, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.00, display=False)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=1000)  # run for a specified number of trials
