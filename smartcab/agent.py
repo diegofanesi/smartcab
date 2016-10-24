@@ -2,37 +2,173 @@ import random
 from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
+import numpy as np
+import collections 
 
+class State(object):
+    def __init__(self, actions_enabled, heading, delta):
+        self.actions_enabled = actions_enabled
+        self.heading = heading
+        self.delta = delta
+        
+    def __eq__(self, a):
+        if (type(a) != type(self)):
+            return False
+        if (a.heading[0] != self.heading[0] or a.heading[1] != self.heading[1]):
+            return False
+        if (a.delta[0] != self.delta[0] or a.delta[1] != self.delta[1]):
+            return False
+        for x in self.actions_enabled:
+            if x not in a.actions_enabled:
+                return False
+        return True
+    
+    def __hash__(self, *args, **kwargs):
+        hashN = self.heading[0] * 3
+        hashN += self.heading[1] * 5
+        hashN += self.delta[0] * 7
+        hashN += self.delta[1] * 11
+        for x in self.actions_enabled:
+            if x == 'right':
+                hashN += 5 * 13
+            if x == 'left':
+                hashN += 5 * 17
+            if x == 'forward':
+                hashN += 5 * 19
+
+        return hash(hashN)
+
+class Transition(object):
+    def __init__(self, state, action):
+        self.state = state
+        self.action = action
+    
+    def __hash__(self, *args, **kwargs):
+        return hash((hash(self.state) * 3) + (hash(self.action) * 5))
+    
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
+    
 
     def __init__(self, env):
         super(LearningAgent, self).__init__(env)  # sets self.env = env, state = None, next_waypoint = None, and a default color
         self.color = 'red'  # override color
         self.planner = RoutePlanner(self.env, self)  # simple route planner to get next_waypoint
         # TODO: Initialize any additional variables here
+        self.actions = ['left', 'right', 'forward', None]
+        self.qTable = dict()
+        self.alpha = 0.1
+        self.State = collections.namedtuple("State", 'actions_enabled heading delta')
+        self.sumReward = 0.0
+        
+        # self.discount
+        # self.gamma
+        
+    def updateQValue (self, state, action, nextState, reward):
+        if((state, action) not in self.qTable): 
+            self.qTable[(state, action)] = self.alpha * (reward + self.getMaxQValue(nextState)[0])
+        else:
+            self.qTable[(state, action)] = self.alpha * (reward + self.getMaxQValue(nextState)[0] - self.qTable[(state, action)]) 
 
+    def getQValue (self, state, action):
+        return self.qTable.get((state, action), 0)
+    
+    def getMaxQValue (self, state):
+        bestQ = -999999
+        bestAction = None
+        for a in self.actions:
+            if (self.getQValue(state, a) > bestQ):
+                bestQ = self.getQValue(state, a)
+                bestAction = a
+            elif(self.getQValue(state, a) == bestQ):
+                bestAction = np.random.choice([bestAction, a], 1)[0]
+        return [bestQ, bestAction]
+                
+    def getPolicy(self, state):
+        return self.getMaxQValue(state)[1]
+    
+    def makeTransition(self, state, action):
+        return Transition(state, action)
+    
+    def calcReward(self, lastpos, curpos, target, envReward, deadline):
+        rw = -5.0 / (deadline + 1)   
+        if (envReward == -1.0):
+            return rw + -2.0  # in case of incident or illegal action return a bad reward no matter how closer to the target  
+        if (envReward == 12.0):
+            return envReward * 2  # hitting the target is 24 points reward!
+        if (self.env.compute_dist(lastpos, target) > self.env.compute_dist(curpos, target)):
+            rw = 10.0 / (self.env.compute_dist(curpos, target))  # reward if it gets closer to the target
+        if (self.env.compute_dist(lastpos, target) < self.env.compute_dist(curpos, target)):
+            rw = rw * 2.0  # going farther away from the target is twice the reward of the deadline
+        return rw
+      
+    def makeState(self, inputs):
+        location = self.env.agent_states[self]['location']
+        heading = self.env.agent_states[self]['heading']
+        destination = self.planner.destination
+        # Delta is just a vector that represents the direction of the target from the position of the cab
+        delta = [location[0] - destination[0], location[1] - destination[1]]
+        if (delta[0] > 0):
+            delta[0] = 1
+        if(delta[1] > 0):
+            delta[1] = 1
+        if (delta[0] < 0):
+            delta[0] = -1
+        if(delta[1] < 0):
+            delta[1] = -1
+        
+        # in the status we don't need all the outputs, but just the enabled ways. all the rest will not affect the reward
+        actions_enabled = [None]
+        if inputs['light'] == 'red':
+            if inputs['left'] != 'forward':
+                actions_enabled += 'right'
+        if inputs['light'] == 'green':
+            actions_enabled += 'forward'
+            actions_enabled += 'right'
+            if inputs['oncoming'] != 'right' and inputs['oncoming'] != 'forward':
+                actions_enabled += 'left'
+                
+        state = State(actions_enabled=actions_enabled, delta=delta, heading=heading)
+        return state
+                     
     def reset(self, destination=None):
         self.planner.route_to(destination)
         # TODO: Prepare for a new trip; reset any variables here, if required
-
+        print(self.sumReward)
+        self.sumReward = 0.0
+    
     def update(self, t):
         # Gather inputs
-        self.next_waypoint = self.planner.next_waypoint()  # from route planner, also displayed by simulator
+          # from route planner, also displayed by simulator
+        curpos = self.env.agent_states[self]['location']
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
+        curstate = self.makeState(inputs)
+        self.next_waypoint = self.getMaxQValue(curstate)[1]
+        destination = self.planner.destination
 
+        # action = None
+        # if action_okay:
+        action = self.next_waypoint
+            # self.next_waypoint = self.planner.next_waypoint()
+        reward = self.env.act(self, action)
+        newpos = self.env.agent_states[self]['location']
+        reward = self.calcReward(curpos, newpos, destination, reward, deadline)
+        self.updateQValue(curstate, action, self.makeState(self.env.sense(self)), reward)
+        self.sumReward += reward
         # TODO: Update state
+        # print(inputs)
+
         
         # TODO: Select action according to your policy
-        action = None
+        # action = None
 
         # Execute action and get reward
-        reward = self.env.act(self, action)
+        # reward = self.env.act(self, action)
 
         # TODO: Learn policy based on state, action, reward
 
-        print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
+        # print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
 
 def run():
@@ -42,13 +178,14 @@ def run():
     e = Environment()  # create environment (also adds some dummy traffic)
     a = e.create_agent(LearningAgent)  # create agent
     e.set_primary_agent(a, enforce_deadline=True)  # specify agent to track
+    
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.5, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.01, display=True)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
-    sim.run(n_trials=100)  # run for a specified number of trials
+    sim.run(n_trials=1000)  # run for a specified number of trials
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
 
 
