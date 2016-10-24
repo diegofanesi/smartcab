@@ -37,14 +37,6 @@ class State(object):
                 hashN += 5 * 19
 
         return hash(hashN)
-
-class Transition(object):
-    def __init__(self, state, action):
-        self.state = state
-        self.action = action
-    
-    def __hash__(self, *args, **kwargs):
-        return hash((hash(self.state) * 3) + (hash(self.action) * 5))
     
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
@@ -60,6 +52,7 @@ class LearningAgent(Agent):
         self.alpha = 0.1
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
+        
         
         # self.discount
         # self.gamma
@@ -83,12 +76,6 @@ class LearningAgent(Agent):
             elif(self.getQValue(state, a) == bestQ):
                 bestAction = np.random.choice([bestAction, a], 1)[0]
         return [bestQ, bestAction]
-                
-    def getPolicy(self, state):
-        return self.getMaxQValue(state)[1]
-    
-    def makeTransition(self, state, action):
-        return Transition(state, action)
     
     def calcReward(self, lastpos, curpos, target, envReward, deadline):
         rw = -5.0 / (deadline + 1)   
