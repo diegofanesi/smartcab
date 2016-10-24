@@ -53,7 +53,7 @@ class LearningAgent(Agent):
         # TODO: Initialize any additional variables here
         self.actions = ['left', 'right', 'forward', None]
         self.qTable = dict()
-        self.alpha = 0.9
+        self.alpha = 0.05
         self.epsilon = 0.9
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
@@ -68,7 +68,7 @@ class LearningAgent(Agent):
             self.qTable[(state, action)] = self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0]))
         else:
             #print((state, action))
-            self.qTable[(state, action)] = self.qTable[(state, action)] + (self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0])))
+            self.qTable[(state, action)] = self.qTable[(state, action)] + (self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0])-self.qTable[(state, action)]))
 
     def getQValue (self, state, action):
         return self.qTable.get((state, action), 0)
@@ -85,7 +85,7 @@ class LearningAgent(Agent):
         return [bestQ, bestAction]
     
     def calcReward(self, lastpos, curpos, target, envReward, deadline):
-        rw = -5.0 / (deadline + 1)   
+        rw = 0#-5.0 / (deadline + 1)   
         if (envReward == -1.0):
             return rw + -2.0  # in case of incident or illegal action return a bad reward no matter how closer to the target  
         if (envReward == 12.0):
@@ -93,13 +93,14 @@ class LearningAgent(Agent):
         if (self.env.compute_dist(lastpos, target) > self.env.compute_dist(curpos, target)):
             rw = 20.0 / (self.env.compute_dist(curpos, target))  # reward if it gets closer to the target
         if (self.env.compute_dist(lastpos, target) < self.env.compute_dist(curpos, target)):
-            rw = rw * 2.0  # going farther away from the target is twice the reward of the deadline
+            rw = -0.5#rw * 2.0  # going farther away from the target is twice the reward of the deadline
         return rw
       
     def makeState(self, inputs):
         location = self.env.agent_states[self]['location']
         heading = self.env.agent_states[self]['heading']
         destination = self.planner.destination
+        print(heading)
         # Delta is just a vector that represents the direction of the target from the position of the cab
         delta = [location[0] - destination[0], location[1] - destination[1]]
         if (delta[0] > 0):
@@ -185,7 +186,7 @@ def run():
     sim = Simulator(e, update_delay=0.00, display=False)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
-    sim.run(n_trials=1000)  # run for a specified number of trials
+    sim.run(n_trials=5000)  # run for a specified number of trials
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
 
 
