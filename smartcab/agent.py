@@ -46,13 +46,14 @@ class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
     
 
-    def __init__(self, env):
+    def __init__(self, env, qTable=dict()):
+        print (qTable)
         super(LearningAgent, self).__init__(env)  # sets self.env = env, state = None, next_waypoint = None, and a default color
         self.color = 'red'  # override color
         self.planner = RoutePlanner(self.env, self)  # simple route planner to get next_waypoint
         # TODO: Initialize any additional variables here
         self.actions = ['left', 'right', 'forward', None]
-        self.qTable = dict()
+        self.qTable = qTable
         self.alpha = 0.05
         self.epsilon = 0.9
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
@@ -67,8 +68,8 @@ class LearningAgent(Agent):
         if((state, action) not in self.qTable): 
             self.qTable[(state, action)] = self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0]))
         else:
-            #print((state, action))
-            self.qTable[(state, action)] = self.qTable[(state, action)] + (self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0])-self.qTable[(state, action)]))
+            # print((state, action))
+            self.qTable[(state, action)] = self.qTable[(state, action)] + (self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0]) - self.qTable[(state, action)]))
 
     def getQValue (self, state, action):
         return self.qTable.get((state, action), 0)
@@ -85,22 +86,21 @@ class LearningAgent(Agent):
         return [bestQ, bestAction]
     
     def calcReward(self, lastpos, curpos, target, envReward, deadline):
-        rw = 0#-5.0 / (deadline + 1)   
+        rw = 0  # -5.0 / (deadline + 1)   
         if (envReward == -1.0):
             return rw + -2.0  # in case of incident or illegal action return a bad reward no matter how closer to the target  
         if (envReward == 12.0):
             return envReward * 2  # hitting the target is 24 points reward!
         if (self.env.compute_dist(lastpos, target) > self.env.compute_dist(curpos, target)):
-            rw = 20.0 / (self.env.compute_dist(curpos, target))  # reward if it gets closer to the target
+            rw = 2.0  # reward if it gets closer to the target
         if (self.env.compute_dist(lastpos, target) < self.env.compute_dist(curpos, target)):
-            rw = -0.5#rw * 2.0  # going farther away from the target is twice the reward of the deadline
+            rw = -0.5  # rw * 2.0  # going farther away from the target is twice the reward of the deadline
         return rw
-      
+    
     def makeState(self, inputs):
         location = self.env.agent_states[self]['location']
         heading = self.env.agent_states[self]['heading']
         destination = self.planner.destination
-        print(heading)
         # Delta is just a vector that represents the direction of the target from the position of the cab
         delta = [location[0] - destination[0], location[1] - destination[1]]
         if (delta[0] > 0):
@@ -134,7 +134,7 @@ class LearningAgent(Agent):
         self.planner.route_to(destination)
         # TODO: Prepare for a new trip; reset any variables here, if required
         self.sumReward = 0.0
-        print("NStates: "+ str(self.qTable.__len__()))
+        print("NStates: " + str(self.qTable.__len__()))
     
     def update(self, t):
         # Gather inputs
@@ -176,17 +176,31 @@ def run():
     """Run the agent for a finite number of trials."""
 
     # Set up environment and agent
-    e = Environment()  # create environment (also adds some dummy traffic)
+    e = Environment(0)  # create environment (also adds some dummy traffic)
     a = e.create_agent(LearningAgent)  # create agent
-    e.set_primary_agent(a, enforce_deadline=True)  # specify agent to track
+    e.set_primary_agent(a, enforce_deadline=False)  # specify agent to track
     
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.00, display=False)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.0, display=False)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
-    sim.run(n_trials=5000)  # run for a specified number of trials
+    sim.run(n_trials=1000)  # run for a specified number of trials
+    
+    e = Environment(100)
+    table = a.qTable.copy()
+    a = e.create_agent(LearningAgent, {'qTable': table})
+    e.set_primary_agent(a, enforce_deadline=False)
+    sim = Simulator(e, update_delay=0.0, display=False)
+    sim.run(n_trials=1000) 
+    
+    e = Environment()
+    table = a.qTable.copy()
+    a = e.create_agent(LearningAgent, {'qTable': table})
+    e.set_primary_agent(a, enforce_deadline=True)
+    sim = Simulator(e, update_delay=0.3, display=True)
+    sim.run(n_trials=100)
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
 
 
