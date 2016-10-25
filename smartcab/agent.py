@@ -134,7 +134,7 @@ class LearningAgent(Agent):
     def reset(self, destination=None):
         self.planner.route_to(destination)
         # TODO: Prepare for a new trip; reset any variables here, if required
-        print("Total Reward: " + self.sumReward)
+        print("Total Reward: " + str(self.sumReward))
         self.sumReward = 0.0
         print("NStates: " + str(self.qTable.__len__()))
     
