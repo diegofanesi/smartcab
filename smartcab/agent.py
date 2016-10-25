@@ -4,6 +4,7 @@ from planner import RoutePlanner
 from simulator import Simulator
 import numpy as np
 import collections 
+from sets import Set
 
 class State(object):
     def __init__(self, actions_enabled, heading, delta):
@@ -25,7 +26,7 @@ class State(object):
         return True
     
     def __str__(self):
-        return "position: " + self.delta + " heading: " + self.heading + " actions_enabled: " + self.actions_enabled
+        return ("position: " + self.delta + " heading: " + self.heading + " actions_enabled: " + self.actions_enabled)
     
     def __hash__(self):
         hashN = self.heading[0] * 3
@@ -34,19 +35,19 @@ class State(object):
         hashN += self.delta[1] * 11
         for x in self.actions_enabled:
             if x == 'right':
-                hashN += 5 * 13
+                hashN += 23 * 13
             if x == 'left':
-                hashN += 5 * 17
+                hashN += 23 * 17
             if x == 'forward':
-                hashN += 5 * 19
+                hashN += 23 * 19
 
-        return hash(hashN)
+        return hashN
     
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
     
 
-    def __init__(self, env, qTable=dict()):
+    def __init__(self, env, qTable=dict(), epsilon=0.9):
         print (qTable)
         super(LearningAgent, self).__init__(env)  # sets self.env = env, state = None, next_waypoint = None, and a default color
         self.color = 'red'  # override color
@@ -54,11 +55,11 @@ class LearningAgent(Agent):
         # TODO: Initialize any additional variables here
         self.actions = ['left', 'right', 'forward', None]
         self.qTable = qTable
-        self.alpha = 0.05
-        self.epsilon = 0.9
+        self.alpha = 0.1
+        self.epsilon = epsilon
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
-        self.discount = 0.35
+        self.discount = 0.4
         
         
         # self.discount
@@ -113,18 +114,18 @@ class LearningAgent(Agent):
             delta[1] = -1
         
         # in the status we don't need all the outputs, but just the enabled ways. all the rest will not affect the reward
-        actions_enabled = [None]
+        actions_enabled = Set()
         if inputs['light'] == 'red':
             if inputs['left'] != 'forward':
-                actions_enabled += 'right'
+                actions_enabled.add('right')
         if inputs['light'] == 'green':
-            actions_enabled += 'forward'
-            actions_enabled += 'right'
+            actions_enabled.add('forward')
+            actions_enabled.add('right')
             if inputs['oncoming'] != 'right' and inputs['oncoming'] != 'forward':
-                actions_enabled += 'left'
+                actions_enabled.add('left')
                 
         state = State(actions_enabled=actions_enabled, delta=delta, heading=heading)
-        return state
+        return hash(state)
     
     def actionToTake(self, state):
         return  np.random.choice([self.getMaxQValue(state)[1], np.random.choice(self.actions, 1)[0]], 1, [1 - self.epsilon, self.epsilon])[0]
@@ -133,6 +134,7 @@ class LearningAgent(Agent):
     def reset(self, destination=None):
         self.planner.route_to(destination)
         # TODO: Prepare for a new trip; reset any variables here, if required
+        print("Total Reward: " + self.sumReward)
         self.sumReward = 0.0
         print("NStates: " + str(self.qTable.__len__()))
     
@@ -190,14 +192,14 @@ def run():
     
     e = Environment(100)
     table = a.qTable.copy()
-    a = e.create_agent(LearningAgent, {'qTable': table})
+    a = e.create_agent(LearningAgent, qTable=table)
     e.set_primary_agent(a, enforce_deadline=False)
     sim = Simulator(e, update_delay=0.0, display=False)
     sim.run(n_trials=1000) 
     
     e = Environment()
     table = a.qTable.copy()
-    a = e.create_agent(LearningAgent, {'qTable': table})
+    a = e.create_agent(LearningAgent, qTable=table, epsilon=0)
     e.set_primary_agent(a, enforce_deadline=True)
     sim = Simulator(e, update_delay=0.3, display=True)
     sim.run(n_trials=100)
