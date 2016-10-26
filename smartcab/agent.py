@@ -71,30 +71,31 @@ class RewardCalculator(object):
         bestDistance=9999999
         orientationVector=[]
         
-        if (sumVector(distance)<bestDistance):
+        if (self.sumVector(distance)<bestDistance):
             bestDistance=distance
+            orientationVector=[0,0]
             orientationVector[0]=1 if(distance[0]>0) else -1 if (distance[0]<0) else 0
             orientationVector[1]=1 if(distance[1]>0) else -1 if (distance[1]<0) else 0
-        if (sumVector(distanceLeft)<bestDistance):
+        if (self.sumVector(distanceLeft)<bestDistance):
             bestDistance=distanceLeft
             orientationVector[0]=1 if(distanceLeft[0]>0) else -1 if (distanceLeft[0]<0) else 0
             orientationVector[1]=-1
-        if (sumVector(distanceRight)<bestDistance):
+        if (self.sumVector(distanceRight)<bestDistance):
             bestDistance=distanceRight
             orientationVector[0]=1 if(distanceRight[0]>0) else -1 if (distanceRight[0]<0) else 0
             orientationVector[1]=1
-        if (sumVector(distanceBottom)<bestDistance):
+        if (self.sumVector(distanceBottom)<bestDistance):
             bestDistance=distanceBottom
             orientationVector[0]=-1
             orientationVector[1]=1 if(distance[1]>0) else -1 if (distance[1]<0) else 0
-        if (sumVector(distanceTop)<bestDistance):
+        if (self.sumVector(distanceTop)<bestDistance):
             bestDistance=distanceTop
             orientationVector[0]=1
             orientationVector[1]=1 if(distanceTop[1]>0) else -1 if (distanceTop[1]<0) else 0
         return orientationVector
     
     def calculateBestDistance(self,a,b):
-        distance=[0,0,0,0]
+        distance=[0,0,0,0,0]
         distance[0]=self.sumVector(self.calculateDistance(a, b))
         distance[1]=self.sumVector(self.calculateDistanceLeftBoundary(a, b))
         distance[2]=self.sumVector(self.calculateDistanceRightBoundary(a, b))
@@ -167,15 +168,7 @@ class LearningAgent(Agent):
         heading = self.env.agent_states[self]['heading']
         destination = self.planner.destination
         # Delta is just a vector that represents the direction of the target from the position of the cab
-        delta = [location[0] - destination[0], location[1] - destination[1]]
-        if (delta[0] > 0):
-            delta[0] = 1
-        if(delta[1] > 0):
-            delta[1] = 1
-        if (delta[0] < 0):
-            delta[0] = -1
-        if(delta[1] < 0):
-            delta[1] = -1
+        delta = self.rewardCalculator.calculateOrientationVector(location, destination)
         
         # in the status we don't need all the outputs, but just the enabled ways. all the rest will not affect the reward
         actions_enabled = Set()
