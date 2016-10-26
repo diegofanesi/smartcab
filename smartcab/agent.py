@@ -182,7 +182,7 @@ class LearningAgent(Agent):
                 actions_enabled.add('left')
                 
         state = State(actions_enabled=actions_enabled, delta=delta, heading=heading)
-        return hash(state)
+        return state
     
     def actionToTake(self, state):
         return  np.random.choice([self.getMaxQValue(state)[1], np.random.choice(self.actions, 1)[0]], 1, [1 - self.epsilon, self.epsilon])[0]
@@ -244,18 +244,18 @@ def run():
 
     sim.run(n_trials=1000)  # run for a specified number of trials
     
-    e = Environment(100)
+    e = Environment(15)
     table = a.qTable.copy()
     a = e.create_agent(LearningAgent, qTable=table)
     e.set_primary_agent(a, enforce_deadline=False)
     sim = Simulator(e, update_delay=0.0, display=False)
     sim.run(n_trials=1000) 
     
-    e = Environment()
+    e = Environment(0)
     table = a.qTable.copy()
     a = e.create_agent(LearningAgent, qTable=table, epsilon=0)
     e.set_primary_agent(a, enforce_deadline=True)
-    sim = Simulator(e, update_delay=0.3, display=True)
+    sim = Simulator(e, update_delay=0.5, display=True)
     sim.run(n_trials=100)
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
 
