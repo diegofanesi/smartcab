@@ -208,22 +208,13 @@ class LearningAgent(Agent):
         action = self.next_waypoint
         reward = self.env.act(self, action)
         newpos = self.env.agent_states[self]['location']
+        ########################   Comment the following line to use the default reward calculation ###############################
         reward = self.rewardCalculator.calcReward(curpos, newpos, destination, reward)
+        ###########################################################################################################################
         self.updateQValue(curstate, action, self.makeState(self.env.sense(self)), reward)
         self.sumReward += reward
         
         self.epsilon = self.epsilon * 0.99
-        # TODO: Update state
-        # print(inputs)
-
-        
-        # TODO: Select action according to your policy
-        # action = None
-
-        # Execute action and get reward
-        # reward = self.env.act(self, action)
-
-        # TODO: Learn policy based on state, action, reward
 
         # print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
