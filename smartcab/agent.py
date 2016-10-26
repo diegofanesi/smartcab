@@ -42,6 +42,81 @@ class State(object):
                 hashN += 23 * 19
 
         return hashN
+ 
+class RewardCalculator(object):
+    def __init__(self):
+        self.size=[8,6]
+        
+    def calculateDistance(self,a,b):
+        return [b[0] - a[0], b[1] - a[1]]
+    
+    def calculateDistanceLeftBoundary(self,a,b):
+        return [b[0] - a[0], abs(abs(self.size[1]-b[1])+a[1])]
+    
+    def calculateDistanceRightBoundary(self,a,b):
+        return [b[0] - a[0], abs(abs(self.size[1]-a[1])+b[1])]
+    
+    def calculateDistanceBottomBoundary(self,a,b):
+        return [abs(abs(self.size[0]-b[0])+a[0]), b[1] - a[1]]
+    
+    def calculateDistanceTopBoundary(self,a,b):
+        return [abs(abs(self.size[0]-a[0])+b[0]), b[1] - a[1]]
+    
+    def calculateOrientationVector(self,a,b):
+        distance=self.calculateDistance(a, b)
+        distanceLeft=self.calculateDistanceLeftBoundary(a, b)
+        distanceRight=self.calculateDistanceRightBoundary(a, b)
+        distanceBottom=self.calculateDistanceBottomBoundary(a, b)
+        distanceTop=self.calculateDistanceTopBoundary(a, b)
+        bestDistance=9999999
+        orientationVector=[]
+        
+        if (sumVector(distance)<bestDistance):
+            bestDistance=distance
+            orientationVector[0]=1 if(distance[0]>0) else -1 if (distance[0]<0) else 0
+            orientationVector[1]=1 if(distance[1]>0) else -1 if (distance[1]<0) else 0
+        if (sumVector(distanceLeft)<bestDistance):
+            bestDistance=distanceLeft
+            orientationVector[0]=1 if(distanceLeft[0]>0) else -1 if (distanceLeft[0]<0) else 0
+            orientationVector[1]=-1
+        if (sumVector(distanceRight)<bestDistance):
+            bestDistance=distanceRight
+            orientationVector[0]=1 if(distanceRight[0]>0) else -1 if (distanceRight[0]<0) else 0
+            orientationVector[1]=1
+        if (sumVector(distanceBottom)<bestDistance):
+            bestDistance=distanceBottom
+            orientationVector[0]=-1
+            orientationVector[1]=1 if(distance[1]>0) else -1 if (distance[1]<0) else 0
+        if (sumVector(distanceTop)<bestDistance):
+            bestDistance=distanceTop
+            orientationVector[0]=1
+            orientationVector[1]=1 if(distanceTop[1]>0) else -1 if (distanceTop[1]<0) else 0
+        return orientationVector
+    
+    def calculateBestDistance(self,a,b):
+        distance=[0,0,0,0]
+        distance[0]=self.sumVector(self.calculateDistance(a, b))
+        distance[1]=self.sumVector(self.calculateDistanceLeftBoundary(a, b))
+        distance[2]=self.sumVector(self.calculateDistanceRightBoundary(a, b))
+        distance[3]=self.sumVector(self.calculateDistanceBottomBoundary(a, b))
+        distance[4]=self.sumVector(self.calculateDistanceTopBoundary(a, b))
+        return min(distance)
+        
+     
+    def sumVector(self,a):
+         return abs(a[0])+abs(a[1])   
+            
+    def calcReward(self, lastpos, curpos, target, envReward):
+        rw = 0  # -5.0 / (deadline + 1)   
+        if (envReward == -1.0):
+            return rw + -2.0  # in case of incident or illegal action return a bad reward no matter how closer to the target  
+        if (envReward == 12.0):
+            return envReward * 2  # hitting the target is 24 points reward!
+        if (self.calculateBestDistance(lastpos, target) > self.calculateBestDistance(curpos, target)):
+            rw = 2.0  # reward if it gets closer to the target
+        if (self.calculateBestDistance(lastpos, target) < self.calculateBestDistance(curpos, target)):
+            rw = -0.5  # rw * 2.0  # going farther away from the target is twice the reward of the deadline
+        return rw
     
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
@@ -60,6 +135,7 @@ class LearningAgent(Agent):
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
         self.discount = 0.4
+        self.rewardCalculator=RewardCalculator()
         
         
         # self.discount
@@ -85,18 +161,6 @@ class LearningAgent(Agent):
             elif(self.getQValue(state, a) == bestQ):
                 bestAction = np.random.choice([bestAction, a], 1)[0]
         return [bestQ, bestAction]
-    
-    def calcReward(self, lastpos, curpos, target, envReward, deadline):
-        rw = 0  # -5.0 / (deadline + 1)   
-        if (envReward == -1.0):
-            return rw + -2.0  # in case of incident or illegal action return a bad reward no matter how closer to the target  
-        if (envReward == 12.0):
-            return envReward * 2  # hitting the target is 24 points reward!
-        if (self.env.compute_dist(lastpos, target) > self.env.compute_dist(curpos, target)):
-            rw = 2.0  # reward if it gets closer to the target
-        if (self.env.compute_dist(lastpos, target) < self.env.compute_dist(curpos, target)):
-            rw = -0.5  # rw * 2.0  # going farther away from the target is twice the reward of the deadline
-        return rw
     
     def makeState(self, inputs):
         location = self.env.agent_states[self]['location']
@@ -148,13 +212,10 @@ class LearningAgent(Agent):
         self.next_waypoint = self.actionToTake(curstate)
         destination = self.planner.destination
 
-        # action = None
-        # if action_okay:
         action = self.next_waypoint
-            # self.next_waypoint = self.planner.next_waypoint()
         reward = self.env.act(self, action)
         newpos = self.env.agent_states[self]['location']
-        reward = self.calcReward(curpos, newpos, destination, reward, deadline)
+        reward = self.rewardCalculator.calcReward(curpos, newpos, destination, reward)
         self.updateQValue(curstate, action, self.makeState(self.env.sense(self)), reward)
         self.sumReward += reward
         
