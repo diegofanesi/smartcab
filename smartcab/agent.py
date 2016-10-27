@@ -3,12 +3,14 @@ from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
 import numpy as np
+import os
 import collections 
+
 from sets import Set
 
 class State(object):
     def __init__(self, actions_enabled, next_step):
-        self.actions_enabled = actions_enabled.copy()
+        self.actions_enabled = actions_enabled
         self.next_step = next_step   
         
     def __eq__(self, a):
@@ -59,23 +61,25 @@ class LearningAgent(Agent):
         # TODO: Initialize any additional variables here
         self.actions = ['left', 'right', 'forward', None]
         self.qTable = qTable
-        self.alpha = 0.001
+        self.alpha = 0.26
         self.epsilon = epsilon
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
-        self.discount = 0.34
+        self.discount = 0.33
+        
+        ############ stat variables ##############
+        self.arrayRewards=[]
+        self.arrayTrialResults=[]
+        self.lastReward =-5.0
         
     def updateQValue (self, state, action, nextState, reward):
-        if((state, action) not in self.qTable): 
-            self.qTable[(state, action)] = 3
-        else:
-            self.qTable[(state, action)] = (1-self.alpha) * self.qTable[(state, action)] + (self.alpha * (reward + self.discount * self.getMaxQValue(nextState)[0] - self.qTable[(state, action)]))
+            self.qTable[(state, action)] = (1-self.alpha) * self.getQValue(state, action) + (self.alpha * (reward + self.discount * self.getMaxQValue(nextState)[0]- self.getQValue(state, action)))
 
     def getQValue (self, state, action):
-        return self.qTable.get((state, action), 0)
+        return self.qTable.get((state, action), 1)
     
     def getMaxQValue (self, state):
-        bestQ = -999999
+        bestQ = -999999.99
         bestAction = None
         for a in self.actions:
             if (self.getQValue(state, a) > bestQ):
@@ -95,8 +99,7 @@ class LearningAgent(Agent):
             actions_enabled.add('forward')
             actions_enabled.add('right')
             if inputs['oncoming'] != 'right' and inputs['oncoming'] != 'forward':
-                actions_enabled.add('left')
-                
+                actions_enabled.add('left')     
         if next_step==None:
             next_step=self.next_waypoint
         state = State(actions_enabled=actions_enabled, next_step=next_step)
@@ -113,6 +116,11 @@ class LearningAgent(Agent):
         self.sumReward = 0.0
         print("NStates: " + str(len(self.qTable.keys())))
     
+        if self.lastReward != -5.0:
+            self.arrayTrialResults.append( 1 if self.lastReward>8 else 0 )
+            print ("success rate: " + str(float(self.arrayTrialResults.count(1))/float(self.arrayTrialResults.__len__())*100) + "%")
+            print ("penalties: " + str(float(self.arrayRewards.count(-1.0)+self.arrayRewards.count(-0.5))/float(self.arrayRewards.__len__())*100) + "%")
+        
     def update(self, t):
         # Gather inputs
           # from route planner, also displayed by simulator
@@ -128,8 +136,11 @@ class LearningAgent(Agent):
         self.updateQValue(curstate, action, self.makeState(self.env.sense(self),self.planner.next_waypoint()), reward)
         self.sumReward += reward
         
+        self.lastReward = reward
+        self.arrayRewards.append(reward)
+        
 
-        # print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
+        #print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
 
 def run():
@@ -137,16 +148,16 @@ def run():
     
     e = Environment(15)
     a = e.create_agent(LearningAgent)
-    e.set_primary_agent(a, enforce_deadline=False)
+    e.set_primary_agent(a, enforce_deadline=True)
     sim = Simulator(e, update_delay=0.0, display=False)
-    sim.run(n_trials=40000) 
-    
+    sim.run(n_trials=50) 
+    os.system('read -s -n 1 -p "Press any key to continue..."')
     e = Environment()
     table = a.qTable.copy()
-    a = e.create_agent(LearningAgent, qTable=table, epsilon=0)
+    a = e.create_agent(LearningAgent, qTable=table)
     e.set_primary_agent(a, enforce_deadline=True)
-    sim = Simulator(e, update_delay=0.3, display=True)
-    sim.run(n_trials=100)
+    sim = Simulator(e, update_delay=0.0, display=True)
+    sim.run(n_trials=50)
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
 
 
