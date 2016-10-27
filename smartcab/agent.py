@@ -9,8 +9,7 @@ from sets import Set
 class State(object):
     def __init__(self, actions_enabled, next_step):
         self.actions_enabled = actions_enabled.copy()
-        self.next_step = next_step
-        
+        self.next_step = next_step   
         
     def __eq__(self, a):
         if (type(a) != type(self)):
@@ -36,6 +35,8 @@ class State(object):
                 hashN *= 3
         if self.next_step == 'forward':
                 hashN *= 5
+        if self.next_step == None:
+                hashN *= 19
         for x in self.actions_enabled:
             if x == 'right':
                 hashN *= 11
@@ -43,36 +44,32 @@ class State(object):
                 hashN *= 13
             if x == 'forward':
                 hashN *= 17
+            if x == None:
+                hashN *= 23
         return hashN
- 
+       
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
     
 
-    def __init__(self, env, qTable=dict(), epsilon=0.9):
-        print (qTable)
+    def __init__(self, env, qTable=dict(), epsilon=0.1):
         super(LearningAgent, self).__init__(env)  # sets self.env = env, state = None, next_waypoint = None, and a default color
         self.color = 'red'  # override color
         self.planner = RoutePlanner(self.env, self)  # simple route planner to get next_waypoint
         # TODO: Initialize any additional variables here
         self.actions = ['left', 'right', 'forward', None]
         self.qTable = qTable
-        self.alpha = 1
+        self.alpha = 0.001
         self.epsilon = epsilon
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
-        self.discount = 0.5
-        
-        
-        # self.discount
-        # self.gamma
+        self.discount = 0.34
         
     def updateQValue (self, state, action, nextState, reward):
-        #if((state, action) not in self.qTable): 
-            self.qTable[(state, action)] = self.alpha * (reward + (self.discount * self.getMaxQValue(nextState)[0]))
-        #else:
-            # print((state, action))
-        #    self.qTable[(state, action)] = self.qTable[(state, action)] + (self.alpha * (reward + (self.discount * (self.getMaxQValue(nextState)[0])) - self.qTable[(state, action)]))
+        if((state, action) not in self.qTable): 
+            self.qTable[(state, action)] = 3
+        else:
+            self.qTable[(state, action)] = (1-self.alpha) * self.qTable[(state, action)] + (self.alpha * (reward + self.discount * self.getMaxQValue(nextState)[0] - self.qTable[(state, action)]))
 
     def getQValue (self, state, action):
         return self.qTable.get((state, action), 0)
@@ -101,7 +98,7 @@ class LearningAgent(Agent):
                 actions_enabled.add('left')
                 
         if next_step==None:
-            next_Step=self.next_waypoint
+            next_step=self.next_waypoint
         state = State(actions_enabled=actions_enabled, next_step=next_step)
         return state
     
@@ -131,33 +128,18 @@ class LearningAgent(Agent):
         self.updateQValue(curstate, action, self.makeState(self.env.sense(self),self.planner.next_waypoint()), reward)
         self.sumReward += reward
         
-        self.epsilon = self.epsilon * 0.99
 
         # print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
 
 def run():
     """Run the agent for a finite number of trials."""
-
-    # Set up environment and agent
-    e = Environment(0)  # create environment (also adds some dummy traffic)
-    a = e.create_agent(LearningAgent)  # create agent
-    e.set_primary_agent(a, enforce_deadline=False)  # specify agent to track
     
-    # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
-
-    # Now simulate it
-    sim = Simulator(e, update_delay=0.0, display=False)  # create simulator (uses pygame when display=True, if available)
-    # NOTE: To speed up simulation, reduce update_delay and/or set display=False
-
-    sim.run(n_trials=1000)  # run for a specified number of trials
-    
-    e = Environment(40)
-    table = a.qTable.copy()
-    a = e.create_agent(LearningAgent, qTable=table)
+    e = Environment(15)
+    a = e.create_agent(LearningAgent)
     e.set_primary_agent(a, enforce_deadline=False)
     sim = Simulator(e, update_delay=0.0, display=False)
-    sim.run(n_trials=1000) 
+    sim.run(n_trials=40000) 
     
     e = Environment()
     table = a.qTable.copy()
