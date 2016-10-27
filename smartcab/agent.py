@@ -156,7 +156,7 @@ def run():
     table = a.qTable.copy()
     a = e.create_agent(LearningAgent, qTable=table)
     e.set_primary_agent(a, enforce_deadline=True)
-    sim = Simulator(e, update_delay=0.0, display=True)
+    sim = Simulator(e, update_delay=0.3, display=True)
     sim.run(n_trials=50)
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
 
