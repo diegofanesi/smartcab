@@ -10,16 +10,14 @@ from sets import Set
 
 class State(object):
     def __init__(self, inputs, next_step):
-        self.left = None#inputs['left']
-        self.right = inputs['right']
+        #self.left = inputs['left']
+        #self.right = inputs['right']
         self.oncoming = inputs['oncoming']
         self.light = inputs['light']
         self.next_step = next_step   
         
     def __eq__(self, a):
         if (type(a) != type(self)):
-            return False
-        if (a.left != self.left):
             return False
         if (a.oncoming != self.oncoming):
             return False
@@ -30,11 +28,11 @@ class State(object):
         return True
     
     def __str__(self):
-        return ("next_step: " + self.next_step + " traffic_light: " + self.light)# + " oncoming: " + str(self.oncoming))
+        return ("next_step: " + self.next_step + " traffic_light: " + self.light + " oncoming: " + str(self.oncoming))
     
     def __hash__(self):
         hashN=1
-        hashN+hash(self.left)+hash(self.light)+hash(self.next_step)+hash(self.oncoming)
+        hashN+hash(self.light)+hash(self.next_step)+hash(self.oncoming)
         return hashN
        
 class LearningAgent(Agent):
@@ -51,7 +49,7 @@ class LearningAgent(Agent):
         self.alpha = 0.9
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
-        self.discount = 0
+        self.discount = 0.0
         
         ############ stat variables ##############
         self.arrayRewards=[]
@@ -89,7 +87,7 @@ class LearningAgent(Agent):
         # TODO: Prepare for a new trip; reset any variables here, if required
         print("Total Reward: " + str(self.sumReward))
         self.sumReward = 0.0
-        print("NStates: " + str(len(self.qTable.keys())))
+        print("N entries in qTable: " + str(len(self.qTable.keys())))
         if self.lastReward != -5.0:
             self.arrayTrialResults.append( 1 if self.lastReward>8 else 0 )
             print ("success rate: " + str(float(self.arrayTrialResults.count(1))/float(self.arrayTrialResults.__len__())*100) + "%")
@@ -123,7 +121,7 @@ def run():
     e.set_primary_agent(a, enforce_deadline=True)
     sim = Simulator(e, update_delay=0.0, display=False)
     sim.run(n_trials=100) 
-    os.system('read -s -n 1 -p "Press any key to continue..."')
+    #os.system('read -s -n 1 -p "Press any key to continue..."')
     e = Environment()
     table = a.qTable.copy()
     a = e.create_agent(LearningAgent, qTable=table)
