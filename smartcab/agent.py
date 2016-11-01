@@ -9,63 +9,47 @@ import collections
 from sets import Set
 
 class State(object):
-    def __init__(self, actions_enabled, next_step):
-        self.actions_enabled = actions_enabled
+    def __init__(self, inputs, next_step):
+        #self.left = inputs['left']
+        #self.right = inputs['right']
+        self.oncoming = inputs['oncoming']
+        self.light = inputs['light']
         self.next_step = next_step   
         
     def __eq__(self, a):
         if (type(a) != type(self)):
             return False
+        if (a.oncoming != self.oncoming):
+            return False
+        if (a.light != self.light):
+            return False
         if (a.next_step != self.next_step):
             return False
-        for x in self.actions_enabled:
-            if x not in a.actions_enabled:
-                return False
-        for x in a.actions_enabled:
-            if x not in self.actions_enabled:
-                return False
         return True
     
     def __str__(self):
-        return ("next_step: " + self.next_step + " actions_enabled: " + self.actions_enabled)
+        return ("next_step: " + self.next_step + " traffic_light: " + self.light + " oncoming: " + str(self.oncoming))
     
     def __hash__(self):
         hashN=1
-        if self.next_step == 'right':
-                hashN *= 7 
-        if self.next_step == 'left':
-                hashN *= 3
-        if self.next_step == 'forward':
-                hashN *= 5
-        if self.next_step == None:
-                hashN *= 19
-        for x in self.actions_enabled:
-            if x == 'right':
-                hashN *= 11
-            if x == 'left':
-                hashN *= 13
-            if x == 'forward':
-                hashN *= 17
-            if x == None:
-                hashN *= 23
+        hashN+hash(self.light)+hash(self.next_step)+hash(self.oncoming)
         return hashN
        
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
     
 
-    def __init__(self, env, qTable=dict(), epsilon=0.1):
+    def __init__(self, env, qTable=dict()):
         super(LearningAgent, self).__init__(env)  # sets self.env = env, state = None, next_waypoint = None, and a default color
         self.color = 'red'  # override color
         self.planner = RoutePlanner(self.env, self)  # simple route planner to get next_waypoint
         # TODO: Initialize any additional variables here
         self.actions = ['left', 'right', 'forward', None]
         self.qTable = qTable
-        self.alpha = 0.26
-        self.epsilon = epsilon
+        self.alpha = 0.9
         self.State = collections.namedtuple("State", 'actions_enabled heading delta')
         self.sumReward = 0.0
-        self.discount = 0.33
+        self.discount = 0.0
         
         ############ stat variables ##############
         self.arrayRewards=[]
@@ -73,10 +57,11 @@ class LearningAgent(Agent):
         self.lastReward =-5.0
         
     def updateQValue (self, state, action, nextState, reward):
-            self.qTable[(state, action)] = (1-self.alpha) * self.getQValue(state, action) + (self.alpha * (reward + self.discount * self.getMaxQValue(nextState)[0]- self.getQValue(state, action)))
+        #print self.getQValue(state, action)
+        self.qTable[(state, action)] =  self.getQValue(state, action) + (self.alpha * (reward + self.discount * self.getMaxQValue(nextState)[0] - self.getQValue(state, action)))
 
     def getQValue (self, state, action):
-        return self.qTable.get((state, action), 1)
+        return self.qTable.get((state, action), 15)
     
     def getMaxQValue (self, state):
         bestQ = -999999.99
@@ -90,23 +75,11 @@ class LearningAgent(Agent):
         return [bestQ, bestAction]
     
     def makeState(self, inputs, next_step=None):
-        # in the status we don't need all the outputs, but just the enabled ways. all the rest will not affect the reward
-        actions_enabled = Set()
-        if inputs['light'] == 'red':
-            if inputs['left'] != 'forward':
-                actions_enabled.add('right')
-        if inputs['light'] == 'green':
-            actions_enabled.add('forward')
-            actions_enabled.add('right')
-            if inputs['oncoming'] != 'right' and inputs['oncoming'] != 'forward':
-                actions_enabled.add('left')     
+        # in the status we don't need all the outputs, but just the enabled ways. all the rest will not affect the reward 
         if next_step==None:
             next_step=self.next_waypoint
-        state = State(actions_enabled=actions_enabled, next_step=next_step)
+        state = State(inputs=inputs,next_step=next_step)
         return state
-    
-    def actionToTake(self, state):
-        return  np.random.choice([self.getMaxQValue(state)[1], np.random.choice(self.actions, 1)[0]], 1, [1 - self.epsilon, self.epsilon])[0]
         
                      
     def reset(self, destination=None):
@@ -114,8 +87,7 @@ class LearningAgent(Agent):
         # TODO: Prepare for a new trip; reset any variables here, if required
         print("Total Reward: " + str(self.sumReward))
         self.sumReward = 0.0
-        print("NStates: " + str(len(self.qTable.keys())))
-    
+        print("N entries in qTable: " + str(len(self.qTable.keys())))
         if self.lastReward != -5.0:
             self.arrayTrialResults.append( 1 if self.lastReward>8 else 0 )
             print ("success rate: " + str(float(self.arrayTrialResults.count(1))/float(self.arrayTrialResults.__len__())*100) + "%")
@@ -128,12 +100,11 @@ class LearningAgent(Agent):
         curpos = self.env.agent_states[self]['location']
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
-        curstate = self.makeState(inputs)
-
-        action = self.actionToTake(curstate)
+        self.state = self.makeState(inputs)
+        action = self.getMaxQValue((self.state))[1]
         reward = self.env.act(self, action)
         newpos = self.env.agent_states[self]['location']
-        self.updateQValue(curstate, action, self.makeState(self.env.sense(self),self.planner.next_waypoint()), reward)
+        self.updateQValue(self.state, action, self.makeState(self.env.sense(self),self.planner.next_waypoint()), reward)
         self.sumReward += reward
         
         self.lastReward = reward
@@ -145,19 +116,18 @@ class LearningAgent(Agent):
 
 def run():
     """Run the agent for a finite number of trials."""
-    
-    e = Environment(15)
+    e = Environment(50)
     a = e.create_agent(LearningAgent)
     e.set_primary_agent(a, enforce_deadline=True)
     sim = Simulator(e, update_delay=0.0, display=False)
-    sim.run(n_trials=50) 
-    os.system('read -s -n 1 -p "Press any key to continue..."')
+    sim.run(n_trials=100) 
+    #os.system('read -s -n 1 -p "Press any key to continue..."')
     e = Environment()
     table = a.qTable.copy()
     a = e.create_agent(LearningAgent, qTable=table)
     e.set_primary_agent(a, enforce_deadline=True)
-    sim = Simulator(e, update_delay=0.3, display=True)
-    sim.run(n_trials=50)
+    sim = Simulator(e, update_delay=0.0, display=False)
+    sim.run(n_trials=100)
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
 
 
