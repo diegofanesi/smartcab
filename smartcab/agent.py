@@ -10,7 +10,7 @@ from sets import Set
 
 class State(object):
     def __init__(self, inputs, next_step):
-        #self.left = inputs['left']
+        self.left = inputs['left']
         #self.right = inputs['right']
         self.oncoming = inputs['oncoming']
         self.light = inputs['light']
@@ -25,14 +25,16 @@ class State(object):
             return False
         if (a.next_step != self.next_step):
             return False
+        if (a.left != self.left):
+            return False
         return True
     
     def __str__(self):
-        return ("next_step: " + self.next_step + " traffic_light: " + self.light + " oncoming: " + str(self.oncoming))
+        return ("next_step: " + self.next_step + " traffic_light: " + self.light + " oncoming: " + str(self.oncoming) + " left: " + str(self.left))
     
     def __hash__(self):
         hashN=1
-        hashN+hash(self.light)+hash(self.next_step)+hash(self.oncoming)
+        hashN+hash(self.light)+hash(self.next_step)+hash(self.oncoming)+hash(self.left)
         return hashN
        
 class LearningAgent(Agent):
@@ -120,7 +122,7 @@ def run():
     a = e.create_agent(LearningAgent)
     e.set_primary_agent(a, enforce_deadline=True)
     sim = Simulator(e, update_delay=0.0, display=False)
-    sim.run(n_trials=100) 
+    sim.run(n_trials=500) 
     #os.system('read -s -n 1 -p "Press any key to continue..."')
     e = Environment()
     table = a.qTable.copy()
