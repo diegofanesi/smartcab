@@ -122,7 +122,7 @@ def run():
     a = e.create_agent(LearningAgent)
     e.set_primary_agent(a, enforce_deadline=True)
     sim = Simulator(e, update_delay=0.0, display=False)
-    sim.run(n_trials=500) 
+    sim.run(n_trials=300) 
     #os.system('read -s -n 1 -p "Press any key to continue..."')
     e = Environment()
     table = a.qTable.copy()
